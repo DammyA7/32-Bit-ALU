@@ -11,15 +11,6 @@
 -- Email          : o.adebayo2@universityofgalway.ie
 -- Date           : 06/10/2022
 
--- entity signal dictionary
--- sel	0/1  selects muxOut = muxIn0/muxIn1
--- muxIn1	Input datapath 1 (1-bit)
--- muxIn0	Input datapath 0 (1-bit)
--- muxOut	Output datapath 1 (1-bit)
-
--- internal signal dictionary
--- None
-
 -- library declarations
 library ieee;
 use ieee.std_logic_1164.all;
