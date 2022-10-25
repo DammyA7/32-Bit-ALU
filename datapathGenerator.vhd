@@ -1,82 +1,126 @@
--- Model name: datapathGenerator  
--- Description: Data generation component
+-- Header Section
+-- Component Name : ALU
+-- Title          : 32-bit RISC-V ALU
 
--- Complete all sections marked >>
--- >> Authors: 
--- >> Date: 
+-- Description
+-- ALUOUTMux generates ALUOut(31:0)
+-- branchMux genrates branch
 
--- Signal dictionary 
--- Inputs
---   selCtrl      deassert (l) to select ctrlA as DPMux select signal 
---                assert   (h) to select ctrlB as DPMux select signal 
---   ctrlA        2-bit control bus
---   ctrlB        2-bit control bus
---   sig0Dat      1-bit data  
---   sig1Dat      3-bit bus data
---   sig2Dat      8-bit bus data
---   sig3Dat      4-bit bus data
--- Outputs         
---   datA         8-bit data 
---   datB         8-bit data. 2s complement of datA 
---   datC         8-bit data. datA + datB
+-- Author(s)      : Oluwadamilola Adebayo
+-- Company        : University of Galway
+-- Email          : o.adebayo2@universityofgalway.ie
+-- Date           : 06/10/2022
 
-LIBRARY ieee;
-USE ieee.std_logic_1164.ALL;
-USE ieee.numeric_std.all;
- 
-entity datapathGenerator is
-    Port ( selCtrl     : in  std_logic;
-           ctrlA       : in  STD_LOGIC_VECTOR(1 downto 0);
-           ctrlB       : in  STD_LOGIC_VECTOR(1 downto 0);  
-           sys0Dat     : in  STD_LOGIC;   
-           sys1Dat     : in  STD_LOGIC_VECTOR(2 downto 0);   
-           sys2Dat     : in  STD_LOGIC_VECTOR(7 downto 0);
-           sys3Dat     : in  STD_LOGIC_VECTOR(3 downto 0);
-           datA        : out STD_LOGIC_VECTOR(7 downto 0);
-           datB        : out STD_LOGIC_VECTOR(7 downto 0);
-           datC        : out STD_LOGIC_VECTOR(7 downto 0)
-          );
-end datapathGenerator;
+-- entity signal dictionary
+-- sel	0/1  selects muxOut = muxIn0/muxIn1
+-- muxIn1	Input datapath 1 (1-bit)
+-- muxIn0	Input datapath 0 (1-bit)
+-- muxOut	Output datapath 1 (1-bit)
 
-architecture combinational of datapathGenerator is
--- >> declare internal signals  
-signal ctrl : std_logic_vector(1 downto 0);
-signal intDatA : std_logic_vector(7 downto 0);
-signal intDatB : std_logic_vector(7 downto 0);
+-- internal signal dictionary
+-- None
+
+-- library declarations
+library ieee;
+use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
+
+-- entity declaration
+entity RISCV_ALU is 
+Port(
+	A : in std_logic_vector(31 downto 0);
+	B : in std_logic_vector(31 downto 0);
+	selALUOP : in std_logic_vector(3 downto 0);
+	branch : out std_logic;
+	ALUOut : out std_logic_vector(31 downto 0)
+);
+end entity RISCV_ALU;
+
+architecture Combinational of RISCV_ALU is
+-- Internal signal declarations
+-- Component declarations
+
 begin
-    ctrl_mux : process (selCtrl, ctrlA, ctrlB)
-    begin
-        ctrl <= ctrlA;--default to ctrlA
-        if selCtrl = '1' then
-            ctrl <= ctrlB;
-        end if;
-    end process ctrl_mux;
-    
-    DP_mux : process (ctrl, sys0Dat, sys1Dat, sys2Dat, sys3Dat)
-    begin
-        case ctrl is
-            when "00" => intDatA <= (sys0Dat & sys1Dat & sys2Dat(4 downto 1));
-            when "01" => intDatA <= x"f4";
-            when "10" => intDatA <= sys2Dat;
-            when others => intDatA <= std_logic_vector(resize(unsigned(sys3Dat),intDatA'length));
-        end case;           
-    end process DP_mux;
-    
-    asgn_DatA : process (datA, intDatA)
-    begin 
-        datA <= intDatA;
-    end process asgn_DatA;
-    
-    inv_incr1_asgnDatB: process (intDatB, intDatA, datB)
-    begin 
-        intDatB <= std_logic_vector( unsigned(not intDatA) + 1);
-        datB <= intDatB;
-    end process inv_incr1_asgnDatB;
-    
-    add: process(intDatB, intDatA, datC)
-    begin 
-        datC <= std_logic_vector( unsigned(intDatB) + unsigned(intDatA));
-    end process add;
--- >> complete VHDL model, using signals exactly as defined in the datapathGenerator specification
 
-end combinational;
+ALUOut_branch_i: process(A,B,selALUOP)
+begin
+	AlUOut <= (others => '0');
+	branch <= '0';
+	case selALUOP is
+	-- arithmetic operations
+		when "0000" => ALUOut <= std_logic_vector(signed(A) + signed(B));  --ADD
+		when "0001" => ALUOut <= std_logic_vector(signed(A) - signed(B));  --SUB
+		
+	-- logical Operations
+		when "0010" => ALUOut <= A AND B; -- AND
+		when "0011" => ALUOut <= A OR B; --OR
+		when "0100" => ALUOut <= A XOR B; --XOR
+		
+	-- Shift (immediate or registered) operations
+		when "0101" => ALUOut <= std_logic_vector(shift_left(unsigned(A), to_integer(unsigned(B(4 downto 0))))); --SLL
+		when "0110" => ALUOut <= std_logic_vector(shift_right(unsigned(A), to_integer(unsigned(B(4 downto 0))))); --SRL
+		when "0111" => ALUOut <= std_logic_vector(shift_right(signed(A), to_integer(unsigned(B(4 downto 0))))); -- SRA 
+		
+	-- set less than operations
+		when "1000" => -- Set less than immediate(SLT)
+		if(signed(A) < signed(B)) then
+				ALUOut(0) <= '1';
+			else
+				ALUOut(0) <= '0';
+			end if;
+		
+		when "1001" => -- Set less than unsigned(SLTU)
+		if(unsigned(A) < unsigned(B)) then
+				ALUOut(0) <= '1';
+			else
+				ALUOut(0) <= '0';
+			end if;
+		
+	-- branch check
+		when "1010" => --BEQ
+			if(A = B) then
+				branch <= '1';
+			else
+				branch <= '0';
+			end if;
+		
+		when "1011" => --BNE
+		  if(A /= B) then
+				branch <= '1';
+			else
+				branch <= '0';
+			end if;
+		
+		
+		when "1100" => --BLT
+		if(signed(A) < signed(B)) then
+				branch <= '1';
+			else
+				branch <= '0';
+			end if;
+			
+		when "1101" => --BGE
+		if(signed(A) >= signed(B)) then
+				branch <= '1';
+			else
+				branch <= '0';
+			end if;
+		
+		when "1110" => --BLTU
+		if(unsigned(A) < unsigned(B)) then
+				branch <= '1';
+			else
+				branch <= '0';
+			end if;
+		
+		when "1111" => --BGEU
+		if(unsigned(A) >= unsigned(B)) then
+				branch <= '1';
+			else
+				branch <= '0';
+			end if;
+	   when others => null;
+    end case;
+end process;
+
+end Combinational;
